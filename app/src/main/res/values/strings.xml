@@ -1701,6 +1701,14 @@
 	<string name="notification_mark_seen">Mark seen</string>
 	<!-- Notification action suppressing further bell alerts until this connection ends. -->
 	<string name="notification_mute_bells">Mute bells</string>
+	<!-- Title shown after an automatic SSH reconnect succeeds. -->
+	<string name="notification_reconnect_success_title">SSH restored</string>
+	<!-- Body shown after an automatic SSH reconnect succeeds. -->
+	<string name="notification_reconnect_success_text">Connection to %1$s was restored successfully.</string>
+	<!-- Title shown after finite automatic SSH reconnect attempts are exhausted. -->
+	<string name="notification_reconnect_failure_title">SSH could not be restored</string>
+	<!-- Body shown after finite automatic SSH reconnect attempts are exhausted. -->
+	<string name="notification_reconnect_failure_text">Reconnect attempts to %1$s are exhausted.</string>
 	<!-- Settings switch title for unexpected background disconnection alerts. -->
 	<string name="pref_connection_lost_notification_title">Lost connection notifications</string>
 	<!-- Settings switch summary explaining when connection failure alerts appear. -->

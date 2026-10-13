@@ -965,13 +965,15 @@ class TerminalManager :
         }
     }
 
-    fun onSessionEnded(bridge: TerminalBridge, reason: DisconnectReason) {
+    fun onSessionEnded(bridge: TerminalBridge, reason: DisconnectReason, automaticReconnect: Boolean = false) {
         val session = bridge.notificationSession()
         scope.launch(dispatchers.main) {
             if (bridge.notificationSessionId != session.id) return@launch
-            val alert = isNotificationEnabled(PreferenceConstants.CONNECTION_LOST_NOTIFICATION) &&
+            val alert = !automaticReconnect && isNotificationEnabled(PreferenceConstants.CONNECTION_LOST_NOTIFICATION) &&
                 !(isUiVisible && visibleBridge === bridge)
-            connectionNotifier.sessionEnded(this@TerminalManager, session, reason, alert)
+            if (!automaticReconnect) {
+                connectionNotifier.sessionEnded(this@TerminalManager, session, reason, alert)
+            }
         }
     }
 
@@ -1163,6 +1165,11 @@ class TerminalManager :
                     }
                 }
 
+                if (attempts > 0 && !bridge.isDisconnected) {
+                    connectionNotifier.reconnectSucceeded(this@TerminalManager, bridge.notificationSession())
+                } else if (maxRetries > 0 && attempts >= maxRetries && bridge.isDisconnected) {
+                    connectionNotifier.reconnectFailed(this@TerminalManager, bridge.notificationSession())
+                }
                 notifyBridgeStateChanged()
             }
         }

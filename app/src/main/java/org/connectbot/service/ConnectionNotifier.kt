@@ -57,7 +57,14 @@ data class NotificationSession(
 /** Serializes notification state and Android IPC on the injected I/O dispatcher. */
 @Singleton
 class ConnectionNotifier @Inject constructor(dispatchers: CoroutineDispatchers) {
-    private data class Notice(val session: NotificationSession, val reason: DisconnectReason?, val time: Long)
+    private enum class NoticeType { BELL, DISCONNECT, RECONNECT_SUCCESS, RECONNECT_FAILURE }
+
+    private data class Notice(
+        val session: NotificationSession,
+        val reason: DisconnectReason?,
+        val time: Long,
+        val type: NoticeType = if (reason == null) NoticeType.BELL else NoticeType.DISCONNECT,
+    )
 
     private val work = Channel<() -> Unit>(Channel.UNLIMITED)
     private var sessions = emptyList<NotificationSession>()
@@ -171,9 +178,18 @@ class ConnectionNotifier @Inject constructor(dispatchers: CoroutineDispatchers) 
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         .build()
 
-    private fun eventText(context: Context, notice: Notice): String = notice.reason?.let {
-        context.getString(it.descriptionResource())
-    } ?: context.getString(R.string.notification_bell)
+    private fun eventTitle(context: Context, notice: Notice): String = when (notice.type) {
+        NoticeType.RECONNECT_SUCCESS -> context.getString(R.string.notification_reconnect_success_title)
+        NoticeType.RECONNECT_FAILURE -> context.getString(R.string.notification_reconnect_failure_title)
+        else -> notice.session.host.nickname
+    }
+
+    private fun eventText(context: Context, notice: Notice): String = when (notice.type) {
+        NoticeType.RECONNECT_SUCCESS -> context.getString(R.string.notification_reconnect_success_text, notice.session.host.nickname)
+        NoticeType.RECONNECT_FAILURE -> context.getString(R.string.notification_reconnect_failure_text, notice.session.host.nickname)
+        else -> notice.reason?.let { context.getString(it.descriptionResource()) }
+            ?: context.getString(R.string.notification_bell)
+    }
 
     private fun summary(context: Context): Notification {
         val title = summaryText(context)
@@ -255,8 +271,8 @@ class ConnectionNotifier @Inject constructor(dispatchers: CoroutineDispatchers) 
 
     private fun postNotice(context: Context, notice: Notice) {
         val session = notice.session
-        val result = builder(context, if (notice.reason == null) BELL_CHANNEL else LOSS_CHANNEL)
-            .setContentTitle(session.host.nickname)
+        val result = builder(context, if (notice.type == NoticeType.BELL) BELL_CHANNEL else LOSS_CHANNEL)
+            .setContentTitle(eventTitle(context, notice))
             .setContentText(eventText(context, notice))
             .setStyle(NotificationCompat.BigTextStyle().bigText(eventText(context, notice)))
             .setWhen(notice.time)
@@ -274,9 +290,9 @@ class ConnectionNotifier @Inject constructor(dispatchers: CoroutineDispatchers) 
                 },
             )
             .addAction(0, context.getString(R.string.notification_mark_seen), actionIntent(context, ACTION_SEEN, session.id))
-        if (notice.reason == null) {
+        if (notice.type == NoticeType.BELL) {
             result.addAction(0, context.getString(R.string.notification_mute_bells), actionIntent(context, ACTION_MUTE, session.id))
-        } else {
+        } else if (notice.type == NoticeType.DISCONNECT || notice.type == NoticeType.RECONNECT_FAILURE) {
             result.addAction(0, context.getString(R.string.console_menu_reconnect), openIntent(context, session, reconnect = true))
         }
         manager(context).notify(session.id, ACTIVITY_NOTIFICATION, result.build())
@@ -327,6 +343,28 @@ class ConnectionNotifier @Inject constructor(dispatchers: CoroutineDispatchers) 
             val notice = Notice(session, reason, System.currentTimeMillis())
             notices[session.id] = notice
         }
+        refresh(context)
+    }
+
+    fun reconnectSucceeded(context: Context, session: NotificationSession) = enqueue(context) {
+        clearNotice(context, session.id)
+        notices[session.id] = Notice(
+            session.copy(connected = true, connecting = false),
+            null,
+            System.currentTimeMillis(),
+            NoticeType.RECONNECT_SUCCESS,
+        )
+        refresh(context)
+    }
+
+    fun reconnectFailed(context: Context, session: NotificationSession) = enqueue(context) {
+        clearNotice(context, session.id)
+        notices[session.id] = Notice(
+            session.copy(connected = false, connecting = false),
+            null,
+            System.currentTimeMillis(),
+            NoticeType.RECONNECT_FAILURE,
+        )
         refresh(context)
     }
 

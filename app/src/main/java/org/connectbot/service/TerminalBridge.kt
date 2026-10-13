@@ -827,7 +827,6 @@ class TerminalBridge {
      * authentication. If called before authenticated, it will just fail.
      */
     fun onConnected() {
-        manager.cancelReconnect(this)
         disconnected = false
         connecting = false
         transportFailure = null
@@ -922,8 +921,15 @@ class TerminalBridge {
             }
         }
 
+        val disconnectAction = DisconnectPolicy.decide(
+            reason,
+            host.quickDisconnect,
+            host.stayConnected,
+            sessionAttention.snapshot().unreadOutput,
+        )
+
         sessionAttention.onEnded(reason)
-        manager.onSessionEnded(this, reason)
+        manager.onSessionEnded(this, reason, disconnectAction is DisconnectAction.AutoReconnect)
 
         // Cancel any pending prompts
         promptManager.cancelPrompt()
@@ -938,14 +944,7 @@ class TerminalBridge {
             }
         }
 
-        when (
-            DisconnectPolicy.decide(
-                reason,
-                host.quickDisconnect,
-                host.stayConnected,
-                sessionAttention.snapshot().unreadOutput,
-            )
-        ) {
+        when (disconnectAction) {
             is DisconnectAction.CloseImmediately -> {
                 sessionAttention.onOutputDiscarded()
                 awaitingClose = true
