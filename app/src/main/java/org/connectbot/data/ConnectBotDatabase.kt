@@ -83,7 +83,7 @@ import java.util.UUID
         Profile::class,
         AutomationAction::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -96,6 +96,7 @@ import java.util.UUID
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 11, to = 12),
         AutoMigration(from = 12, to = 13),
+        AutoMigration(from = 13, to = 14),
     ],
 )
 @TypeConverters(Converters::class)

@@ -120,6 +120,8 @@ fun HostEditorScreen(
         onCompressionChange = viewModel::updateCompression,
         onWantSessionChange = viewModel::updateWantSession,
         onStayConnectedChange = viewModel::updateStayConnected,
+        onReconnectMaxRetriesChange = viewModel::updateReconnectMaxRetries,
+        onReconnectDelaySecondsChange = viewModel::updateReconnectDelaySeconds,
         onQuickDisconnectChange = viewModel::updateQuickDisconnect,
         onEditAutomation = { onNavigateToAutomation(uiState.hostId) },
         onJumpHostChange = viewModel::updateJumpHostId,
@@ -155,6 +157,8 @@ fun HostEditorScreenContent(
     onCompressionChange: (Boolean) -> Unit,
     onWantSessionChange: (Boolean) -> Unit,
     onStayConnectedChange: (Boolean) -> Unit,
+    onReconnectMaxRetriesChange: (Int) -> Unit,
+    onReconnectDelaySecondsChange: (Int) -> Unit,
     onQuickDisconnectChange: (Boolean) -> Unit,
     onEditAutomation: () -> Unit,
     onJumpHostChange: (Long?) -> Unit,
@@ -523,6 +527,42 @@ fun HostEditorScreenContent(
                 checked = uiState.stayConnected,
                 onCheckedChange = onStayConnectedChange,
             )
+            if (uiState.stayConnected) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+
+                OutlinedTextField(
+                    value = uiState.reconnectMaxRetries.toString(),
+                    onValueChange = { text ->
+                        text.toIntOrNull()?.let(onReconnectMaxRetriesChange)
+                    },
+                    label = { Text("Количество попыток") },
+                    supportingText = {
+                        Text("0 — бесконечно, 1 — одна попытка")
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = uiState.reconnectDelaySeconds.toString(),
+                    onValueChange = { text ->
+                        text.toIntOrNull()?.let(onReconnectDelaySecondsChange)
+                    },
+                    label = { Text("Интервал между попытками (сек.)") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             // Quick disconnect
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -1364,6 +1404,8 @@ private fun HostEditorScreenPreview() {
             onCompressionChange = {},
             onWantSessionChange = {},
             onStayConnectedChange = {},
+            onReconnectMaxRetriesChange = {},
+            onReconnectDelaySecondsChange = {},
             onQuickDisconnectChange = {},
             onEditAutomation = {},
             onJumpHostChange = {},

@@ -59,6 +59,9 @@ data class HostEditorUiState(
     val compression: Boolean = false,
     val wantSession: Boolean = true,
     val stayConnected: Boolean = false,
+
+    val reconnectMaxRetries: Int = 1,
+    val reconnectDelaySeconds: Int = 5,
     val quickDisconnect: Boolean = false,
     val automationCount: Int = 0,
     val jumpHostId: Long? = null,
@@ -181,6 +184,8 @@ class HostEditorViewModel @Inject constructor(
                             compression = host.compression,
                             wantSession = host.wantSession,
                             stayConnected = host.stayConnected,
+                            reconnectMaxRetries = host.reconnectMaxRetries,
+                            reconnectDelaySeconds = host.reconnectDelaySeconds,
                             quickDisconnect = host.quickDisconnect,
                             jumpHostId = host.jumpHostId,
                             ipVersion = host.ipVersion,
@@ -334,7 +339,27 @@ class HostEditorViewModel @Inject constructor(
     fun updateStayConnected(value: Boolean) {
         _uiState.update { it.copy(stayConnected = value, hasUnsavedChanges = true) }
     }
+    fun updateReconnectMaxRetries(value: Int) {
+        if (value < 0) return
 
+        _uiState.update {
+            it.copy(
+                reconnectMaxRetries = value,
+                hasUnsavedChanges = true
+            )
+        }
+    }
+
+    fun updateReconnectDelaySeconds(value: Int) {
+        if (value !in 1..3600) return
+
+        _uiState.update {
+            it.copy(
+                reconnectDelaySeconds = value,
+                hasUnsavedChanges = true
+            )
+        }
+    }
     fun updateQuickDisconnect(value: Boolean) {
         _uiState.update { it.copy(quickDisconnect = value, hasUnsavedChanges = true) }
     }
@@ -402,6 +427,8 @@ class HostEditorViewModel @Inject constructor(
                 compression = state.compression,
                 wantSession = state.wantSession,
                 stayConnected = state.stayConnected,
+                reconnectMaxRetries = state.reconnectMaxRetries,
+                reconnectDelaySeconds = state.reconnectDelaySeconds,
                 quickDisconnect = state.quickDisconnect,
                 postLogin = null,
                 lastConnect = existingHost?.lastConnect ?: System.currentTimeMillis(),

@@ -252,7 +252,13 @@ class TerminalManager :
     private var savingKeys = false
 
     private val pendingReconnect: MutableList<WeakReference<TerminalBridge>> = ArrayList()
+    private val reconnectJobs = mutableMapOf<TerminalBridge, Job>()
 
+    fun cancelReconnect(bridge: TerminalBridge) {
+        synchronized(reconnectJobs) {
+            reconnectJobs.remove(bridge)?.cancel()
+        }
+    }
     private val nextTemporaryHostId = AtomicLong(-1L)
 
     internal var hardKeyboardHidden = false
@@ -398,7 +404,9 @@ class TerminalManager :
                 ref.get()?.host?.id == hostId
             }
         }
-
+        for (bridge in bridges) {
+            cancelReconnect(bridge)
+        }
         for (bridge in bridges) {
             bridge.dispatchDisconnect(DisconnectReason.USER_REQUESTED)
         }
@@ -1097,12 +1105,65 @@ class TerminalManager :
      * @param bridge the TerminalBridge to reconnect when possible
      */
     fun requestReconnect(bridge: TerminalBridge) {
-        synchronized(pendingReconnect) {
-            pendingReconnect.add(WeakReference(bridge))
-            if (!bridge.isUsingNetwork() ||
-                connectivityMonitor.getCurrentNetworkInfo()?.isConnected == true
-            ) {
-                reconnectPending()
+        // Старое поведение, если автоподключение отключено
+        if (!bridge.host.stayConnected) {
+            synchronized(pendingReconnect) {
+                pendingReconnect.add(WeakReference(bridge))
+                if (!bridge.isUsingNetwork() ||
+                    connectivityMonitor.getCurrentNetworkInfo()?.isConnected == true
+                ) {
+                    reconnectPending()
+                }
+            }
+            return
+        }
+
+        synchronized(reconnectJobs) {
+            if (reconnectJobs[bridge]?.isActive == true) return
+
+            val maxRetries = bridge.host.reconnectMaxRetries
+            val delayMs = bridge.host.reconnectDelaySeconds
+                .coerceIn(1, 3600) * 1000L
+
+            reconnectJobs[bridge] = scope.launch {
+                var attempts = 0
+
+                try {
+                    while (maxRetries == 0 || attempts < maxRetries) {
+                        delay(delayMs)
+
+                        if (!bridge.isDisconnected) {
+                            // Already connected
+                            if (!bridge.connecting) break
+                            continue
+                        }
+
+                        if (bridge.connecting) continue
+
+                        attempts++
+
+                        bridge.startConnection()
+
+                        // Wait until the attempt finishes
+                        while (bridge.connecting) {
+                            delay(250)
+                        }
+
+                        if (!bridge.isDisconnected) {
+                            break
+                        }
+                    }
+                } finally {
+                    val currentJob = coroutineContext[Job]
+
+                    synchronized(reconnectJobs) {
+                        if (reconnectJobs[bridge] === currentJob) {
+                            reconnectJobs.remove(bridge)
+                        }
+                    }
+                }
+
+                notifyBridgeStateChanged()
             }
         }
     }

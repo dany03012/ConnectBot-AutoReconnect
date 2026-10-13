@@ -75,6 +75,19 @@ data class Host(
     @ColumnInfo(name = "stay_connected")
     val stayConnected: Boolean = false,
 
+
+    @ColumnInfo(
+        name = "reconnect_max_retries",
+        defaultValue = "1"
+    )
+    val reconnectMaxRetries: Int = 1,
+
+    @ColumnInfo(
+        name = "reconnect_delay_seconds",
+        defaultValue = "5"
+    )
+    val reconnectDelaySeconds: Int = 5,
+
     @ColumnInfo(name = "quick_disconnect")
     val quickDisconnect: Boolean = false,
 

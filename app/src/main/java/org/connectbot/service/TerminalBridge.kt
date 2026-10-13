@@ -645,6 +645,14 @@ class TerminalBridge {
      * Spawn thread to open connection and start login process.
      */
     fun startConnection() {
+        if (host.stayConnected) {
+            synchronized(this) {
+                if (connecting) return
+                disconnected = false
+                disconnectReason = DisconnectReason.UNKNOWN
+            }
+        }
+
         val newTransport = TransportFactory.getTransport(host.protocol)
         if (newTransport == null) {
             Timber.w("No transport found for ${host.protocol}")
@@ -706,6 +714,10 @@ class TerminalBridge {
                         reason = e.message ?: "Connection failed",
                     ),
                 )
+
+                if (host.stayConnected && !disconnected) {
+                    dispatchDisconnect(DisconnectReason.IO_ERROR)
+                }
             }
         }
     }
@@ -815,6 +827,7 @@ class TerminalBridge {
      * authentication. If called before authenticated, it will just fail.
      */
     fun onConnected() {
+        manager.cancelReconnect(this)
         disconnected = false
         connecting = false
         transportFailure = null
@@ -892,6 +905,9 @@ class TerminalBridge {
      * IO_ERROR already marked disconnected.
      */
     fun dispatchDisconnect(reason: DisconnectReason) {
+        if (reason == DisconnectReason.USER_REQUESTED) {
+            manager.cancelReconnect(this)
+        }
         cancelAutomation()
         // We don't need to do this multiple times.
         synchronized(this) {
